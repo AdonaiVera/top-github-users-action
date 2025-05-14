@@ -10,23 +10,16 @@ const pushGit = require('./helper/git/push-git');
 const configFile = require('./helper/file/config_file');
 const outputCheckpoint = require('./helper/checkpoint/output_checkpoint');
 const outputCache = require('./helper/cache/output_cache');
-const outputMarkdown = require('./helper/markdown/output_markdown');
-const outputHtml = require('./helper/html/output_html');
-const createHtmlFile = require('./helper/html/file/create_html_file');
-const createRankingJsonFile = require('./helper/html/file/create_ranking_json_file');
-const createIndexPage = require('./helper/markdown/page/create_index_page');
-const createPublicContributionsPage = require('./helper/markdown/page/create_public_contributions_page');
-const createTotalContributionsPage = require('./helper/markdown/page/create_total_contributions_page');
-const createFollowersPage = require('./helper/markdown/page/create_followers_page');
 const requestOctokit = require('./helper/octokit/request_octokit');
 const formatMarkdown = require('./helper/markdown/format_markdown');
-const OutputMarkdownModel = require('./model/markdown/OutputMarkdownModel');
+
 let Index = function () {
     // const AUTH_KEY = "";
     // const GITHUB_USERNAME_AND_REPOSITORY = 'gayanvoice/top-github-users';
     const AUTH_KEY = process.env.CUSTOM_TOKEN;
     const GITHUB_USERNAME_AND_REPOSITORY = process.env.GITHUB_REPOSITORY;
     const MAXIMUM_ERROR_ITERATIONS = 4;
+    
     let getCheckpoint = async function (locationsArray, country, checkpoint) {
         let indexOfTheCountry = locationsArray.findIndex(location => location.country === country);
         if(indexOfTheCountry === checkpoint){
@@ -37,13 +30,14 @@ let Index = function () {
             return false;
         }
     }
+    
     let saveCache = async function (readConfigResponseModel, readCheckpointResponseModel) {
         console.log(`########## SaveCache ##########`)
         for await(const locationDataModel of readConfigResponseModel.locations){
             let isCheckpoint = await getCheckpoint(readConfigResponseModel.locations, locationDataModel.country, readCheckpointResponseModel.checkpoint);
             if(isCheckpoint){
                 let json = await requestOctokit.request(AUTH_KEY, MAXIMUM_ERROR_ITERATIONS, locationDataModel.locations);
-                let readCacheResponseModel =  await outputCache.readCacheFile(locationDataModel.country);
+                let readCacheResponseModel = await outputCache.readCacheFile(locationDataModel.country);
                 if(readCacheResponseModel.status){
                     if(readCacheResponseModel.users.length > json.length){
                         if(json.length > 750) {
@@ -65,39 +59,42 @@ let Index = function () {
             }
         }
     }
-    let saveMarkdown = async function (readConfigResponseModel, readCheckpointResponseModel) {
-        console.log(`########## SaveMarkDown ##########`)
+    
+    let updateCheckpoint = async function (readConfigResponseModel, readCheckpointResponseModel) {
+        console.log(`########## Update Checkpoint ##########`)
         for await(const locationDataModel of readConfigResponseModel.locations){
             let isCheckpoint = await getCheckpoint(readConfigResponseModel.locations, locationDataModel.country, readCheckpointResponseModel.checkpoint)
             if(isCheckpoint){
+                // Only read cache file if needed for checkpoint logic
                 let readCacheResponseModel = await outputCache.readCacheFile(locationDataModel.country);
                 if(readCacheResponseModel.status) {
-                    console.log(`Skipping markdown generation for ${locationDataModel.country}`);
+                    console.log(`Processing checkpoint for ${locationDataModel.country}`);
                 }
             }
+            // Update checkpoint file
             await outputCheckpoint.saveCheckpointFile(readConfigResponseModel.locations, locationDataModel.country, readCheckpointResponseModel.checkpoint)
         }
-        console.log("Skipping README generation");
     }
-    let saveHtml = async function (readConfigResponseModel) {
-        console.log(`########## SaveHtml ##########`);
-        console.log("Skipping HTML and JSON generation for docs folder");
-    }
+    
     let main = async function () {
         let readConfigResponseModel = await configFile.readConfigFile();
         let readCheckpointResponseModel = await outputCheckpoint.readCheckpointFile();
         if(readConfigResponseModel.status && readCheckpointResponseModel.status){
             if(!readConfigResponseModel.devMode) await pullGit.pull();
             let checkpointCountry = readConfigResponseModel.locations[readCheckpointResponseModel.checkpoint].country
+            
+            // Only run cache and checkpoint operations
             await saveCache(readConfigResponseModel, readCheckpointResponseModel);
-            await saveMarkdown(readConfigResponseModel, readCheckpointResponseModel);
-            await saveHtml(readConfigResponseModel);
+            await updateCheckpoint(readConfigResponseModel, readCheckpointResponseModel);
+            
             if(!readConfigResponseModel.devMode) await commitGit.commit(`Update ${formatMarkdown.capitalizeTheFirstLetterOfEachWord(checkpointCountry)}`);
             if(!readConfigResponseModel.devMode) await pushGit.push();
         }
     }
+    
     return {
         main: main,
     };
 }();
+
 Index.main().then(() => { });
