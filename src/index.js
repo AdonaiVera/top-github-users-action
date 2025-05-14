@@ -70,22 +70,18 @@ let Index = function () {
         for await(const locationDataModel of readConfigResponseModel.locations){
             let isCheckpoint = await getCheckpoint(readConfigResponseModel.locations, locationDataModel.country, readCheckpointResponseModel.checkpoint)
             if(isCheckpoint){
-                let readCacheResponseModel =  await outputCache.readCacheFile(locationDataModel.country);
+                let readCacheResponseModel = await outputCache.readCacheFile(locationDataModel.country);
                 if(readCacheResponseModel.status) {
-                    let outputMarkdownModel =  new OutputMarkdownModel(GITHUB_USERNAME_AND_REPOSITORY, locationDataModel, readCacheResponseModel, readConfigResponseModel);
-                    await outputMarkdown.savePublicContributionsMarkdownFile(locationDataModel.country, createPublicContributionsPage.create(outputMarkdownModel));
-                    await outputMarkdown.saveTotalContributionsMarkdownFile(locationDataModel.country, createTotalContributionsPage.create(outputMarkdownModel));
-                    await outputMarkdown.saveFollowersMarkdownFile(locationDataModel.country, createFollowersPage.create(outputMarkdownModel));
+                    console.log(`Skipping markdown generation for ${locationDataModel.country}`);
                 }
             }
             await outputCheckpoint.saveCheckpointFile(readConfigResponseModel.locations, locationDataModel.country, readCheckpointResponseModel.checkpoint)
         }
-        if(!readConfigResponseModel.devMode) await outputMarkdown.saveIndexMarkdownFile(createIndexPage.create(GITHUB_USERNAME_AND_REPOSITORY, readConfigResponseModel));
+        console.log("Skipping README generation");
     }
     let saveHtml = async function (readConfigResponseModel) {
         console.log(`########## SaveHtml ##########`);
-        await outputHtml.saveRankingJsonFile(await createRankingJsonFile.create(readConfigResponseModel));
-        await outputHtml.saveHtmlFile(createHtmlFile.create());
+        console.log("Skipping HTML and JSON generation for docs folder");
     }
     let main = async function () {
         let readConfigResponseModel = await configFile.readConfigFile();
@@ -94,8 +90,8 @@ let Index = function () {
             if(!readConfigResponseModel.devMode) await pullGit.pull();
             let checkpointCountry = readConfigResponseModel.locations[readCheckpointResponseModel.checkpoint].country
             await saveCache(readConfigResponseModel, readCheckpointResponseModel);
-            await saveMarkdown(readConfigResponseModel, readCheckpointResponseModel)
-            await saveHtml(readConfigResponseModel)
+            await saveMarkdown(readConfigResponseModel, readCheckpointResponseModel);
+            await saveHtml(readConfigResponseModel);
             if(!readConfigResponseModel.devMode) await commitGit.commit(`Update ${formatMarkdown.capitalizeTheFirstLetterOfEachWord(checkpointCountry)}`);
             if(!readConfigResponseModel.devMode) await pushGit.push();
         }
